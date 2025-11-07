@@ -1,0 +1,12 @@
+{
+  "name": "ci-node-demo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo Building project... && mkdir dist && echo '<h1>Hello CI</h1>' > dist/index.html"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
