@@ -64,4 +64,11 @@ jobs:
             sudo cp -r ~/app/* /var/www/html/
             sudo systemctl restart httpd
           "
+      - name: Run application on EC2
+        run: |
+          ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
+            cd ~/app && \
+            npm install && \
+            nohup npm start > app.log 2>&1 &
+          "
 
