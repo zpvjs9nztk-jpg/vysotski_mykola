@@ -1,4 +1,4 @@
-name: CI for Node.js Project
+name: CI for Node.js Project (with Debug)
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Клонування репозиторію
+      # 1️⃣ Завантаження коду
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -24,15 +24,17 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # 4️⃣ Білд проєкту
+      # 4️⃣ Білд
       - name: Build project
         run: npm run build
 
-      # 5️⃣ Перевірка білду
-      - name: Verify build output
-        run: echo "✅ Build completed successfully!"
+      # 5️⃣ Перевірка результатів білду
+      - name: List files after build
+        run: |
+          echo "📁 Поточна структура після білду:"
+          ls -la
 
-      # 6️⃣ Завантаження артефактів (опціонально)
+      # 6️⃣ Завантаження білду як артефакту (опціонально)
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -41,21 +43,51 @@ jobs:
             dist
             build
 
-      # 7️⃣ Розшифрування SSH ключа
+      # 7️⃣ Перевірка змінних середовища
+      - name: Debug environment variables
+        run: |
+          echo "🧩 Debug info:"
+          echo "EC2_HOST = $EC2_HOST"
+          echo "EC2_USER = $EC2_USER"
+          if [ -z "$EC2_HOST" ] || [ -z "$EC2_USER" ]; then
+            echo "❌ EC2_HOST або EC2_USER не задані!"
+            exit 1
+          fi
+
+      # 8️⃣ Розшифровка SSH-ключа
       - name: Decode SSH key
         run: |
+          if [ -z "$EC2_SSH_KEY_B64" ]; then
+            echo "❌ EC2_SSH_KEY_B64 не задано!"
+            exit 1
+          fi
+          echo "🔐 Створюю SSH ключ..."
           echo "$EC2_SSH_KEY_B64" | base64 --decode > my-ec2-key.pem
           chmod 600 my-ec2-key.pem
+          echo "✅ SSH ключ створено:"
+          ls -lh my-ec2-key.pem
 
-      # 8️⃣ Копіювання файлів на EC2
+      # 9️⃣ Тест SSH-з’єднання (без виконання команд)
+      - name: Test SSH connection
+        run: |
+          echo "🧠 Перевіряю SSH-з'єднання з $EC2_USER@$EC2_HOST"
+          ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no -v $EC2_USER@$EC2_HOST "echo '✅ SSH успішно підключився!'"
+
+      # 🔟 Копіювання проєкту на EC2
       - name: Copy project files to EC2
         run: |
-             scp -i my-ec2-key.pem -o StrictHostKeyChecking=no -r ./dist $EC2_USER@$EC2_HOST:/home/$EC2_USER/app
-      # 9️⃣ Запуск застосунку на EC2
+          echo "🚀 Копіюю файли на EC2..."
+          scp -i my-ec2-key.pem -o StrictHostKeyChecking=no -r . $EC2_USER@$EC2_HOST:/home/$EC2_USER/app
+          echo "✅ Копіювання завершено!"
+
+      # 11️⃣ Запуск застосунку на EC2
       - name: Run application on EC2
         run: |
+          echo "🟢 Запускаю застосунок на EC2..."
           ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
             cd /home/$EC2_USER/app && \
-            nohup npm install && \
+            npm install && \
             nohup npm start > app.log 2>&1 &
           "
+          echo "✅ Застосунок запущено!"
+
