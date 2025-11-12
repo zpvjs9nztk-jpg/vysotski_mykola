@@ -50,8 +50,7 @@ jobs:
       # 8️⃣ Копіювання файлів на EC2
       - name: Copy project files to EC2
         run: |
-          scp -i my-ec2-key.pem -o StrictHostKeyChecking=no -r ./build $EC2_USER@$EC2_HOST:/home/$EC2_USER/app
-
+             scp -i my-ec2-key.pem -o StrictHostKeyChecking=no -r ./dist $EC2_USER@$EC2_HOST:/home/$EC2_USER/app
       # 9️⃣ Запуск застосунку на EC2
       - name: Run application on EC2
         run: |
