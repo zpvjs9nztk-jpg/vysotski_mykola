@@ -57,13 +57,6 @@ jobs:
       - name: Verify files on EC2
         run: ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "ls -la ~/app"
 
-      - name: Serve static files on EC2
-        run: |
-          ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
-            sudo dnf install -y httpd || true
-            sudo cp -r ~/app/* /var/www/html/
-            sudo systemctl restart httpd
-          "
       - name: Run application on EC2
         run: |
           ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
