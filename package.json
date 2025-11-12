@@ -4,9 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "echo Building project... && mkdir dist && echo '<h1>Hello CI</h1>' > dist/index.html"
+    "build": "echo Building project... && mkdir -p dist && echo '<h1>Hello CI</h1>' > dist/index.html",
+    "start": "node index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC"
 }
+

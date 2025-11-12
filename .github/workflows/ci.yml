@@ -14,29 +14,23 @@ jobs:
       EC2_SSH_KEY_B64: ${{ secrets.EC2_SSH_KEY_B64 }}
 
     steps:
-      # 1️⃣ Клонування репозиторію
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Встановлення Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      # 3️⃣ Встановлення залежностей
       - name: Install dependencies
         run: npm install
 
-      # 4️⃣ Білд проєкту
       - name: Build project
         run: npm run build
 
-      # 5️⃣ Лістинг файлів після білду (debug)
       - name: List files after build
-        run: ls -la
+        run: ls -la dist
 
-      # 6️⃣ Debug environment
       - name: Debug environment
         run: |
           echo "EC2_HOST = $EC2_HOST"
@@ -46,29 +40,28 @@ jobs:
             exit 1
           fi
 
-      # 7️⃣ Розшифровка SSH ключа
       - name: Decode SSH key
         run: |
           echo "$EC2_SSH_KEY_B64" | base64 --decode > my-ec2-key.pem
           chmod 600 my-ec2-key.pem
           ls -lh my-ec2-key.pem
 
-      # 8️⃣ Тест SSH-з’єднання
       - name: Test SSH connection
-        run: |
-          ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "echo '✅ SSH підключення успішне'"
+        run: ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "echo '✅ SSH підключення успішне'"
 
-      # 9️⃣ Копіювання проєкту на EC2
-      - name: Copy project to EC2
+      - name: Copy build to EC2
         run: |
-          scp -i my-ec2-key.pem -o StrictHostKeyChecking=no -r . $EC2_USER@$EC2_HOST:/home/$EC2_USER/app
+          ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "mkdir -p ~/app"
+          scp -i my-ec2-key.pem -o StrictHostKeyChecking=no -r ./dist/* $EC2_USER@$EC2_HOST:~/app
 
-      # 🔟 Запуск застосунку на EC2
-      - name: Run application on EC2
+      - name: Verify files on EC2
+        run: ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "ls -la ~/app"
+
+      - name: Serve static files on EC2
         run: |
           ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
-            cd /home/$EC2_USER/app && \
-            npm install && \
-            nohup npm start > app.log 2>&1 &
+            sudo dnf install -y httpd || true
+            sudo cp -r ~/app/* /var/www/html/
+            sudo systemctl restart httpd
           "
 
