@@ -10,25 +10,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Клонування репозиторію
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
-
+      # 2️⃣ Встановлення Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
+      # 3️⃣ Встановлення залежностей
       - name: Install dependencies
         run: npm install
 
+      # 4️⃣ Білд проєкту
       - name: Build project
         run: npm run build
 
+      # 5️⃣ Перевірка білду
       - name: Verify build output
-        run: echo "Build completed successfully!"
+        run: echo "✅ Build completed successfully!"
 
+      # 6️⃣ Завантаження артефактів (опціонально)
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -36,3 +40,23 @@ jobs:
           path: |
             dist
             build
+
+      # 7️⃣ Розшифрування SSH ключа
+      - name: Decode SSH key
+        run: |
+          echo "$EC2_SSH_KEY_B64" | base64 --decode > my-ec2-key.pem
+          chmod 600 my-ec2-key.pem
+
+      # 8️⃣ Копіювання файлів на EC2
+      - name: Copy project files to EC2
+        run: |
+          scp -i my-ec2-key.pem -o StrictHostKeyChecking=no -r ./build $EC2_USER@$EC2_HOST:/home/$EC2_USER/app
+
+      # 9️⃣ Запуск застосунку на EC2
+      - name: Run application on EC2
+        run: |
+          ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
+            cd /home/$EC2_USER/app && \
+            nohup npm install && \
+            nohup npm start > app.log 2>&1 &
+          "
