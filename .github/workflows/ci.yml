@@ -48,16 +48,16 @@ jobs:
           echo "$EC2_SSH_KEY_B64" | base64 --decode > my-ec2-key.pem
           chmod 600 my-ec2-key.pem
 
-      - name: Deploy Docker container on EC2
+      - name: Deploy container on EC2
         run: |
           ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
-            # Встановити Docker, якщо його немає
-            which docker || curl -fsSL https://get.docker.com | sh
+            # Створюємо каталог для контейнера
+            podman rm -f nodeapp || true
 
-            # Зупинити старий контейнер
-            docker rm -f nodeapp || true
+            # Завантажуємо образ з Docker Hub
+            podman pull docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
 
-            # Запустити новий контейнер
-            docker run -d --name nodeapp -p 3000:3000 ${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
+            # Запускаємо контейнер
+            podman run -d --name nodeapp -p 3000:3000 docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
           "
 
