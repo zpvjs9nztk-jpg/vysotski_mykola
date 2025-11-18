@@ -2,11 +2,24 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { Client } = require('pg');
 
 const PORT = 3000;
 
+// Налаштування PostgreSQL з environment variables
+const client = new Client({
+  host: process.env.PGHOST || 'localhost',
+  user: process.env.PGUSER || 'postgres',
+  password: process.env.PGPASSWORD || 'postgres',
+  database: process.env.PGDATABASE || 'mydb',
+  port: process.env.PGPORT || 5432,
+});
+
+client.connect()
+  .then(() => console.log('✅ Підключення до PostgreSQL успішне'))
+  .catch(err => console.error('❌ Помилка підключення до PostgreSQL:', err));
+
 const server = http.createServer((req, res) => {
-  // Завантажуємо dist/index.html
   const filePath = path.join(__dirname, 'dist', 'index.html');
   fs.readFile(filePath, (err, data) => {
     if (err) {

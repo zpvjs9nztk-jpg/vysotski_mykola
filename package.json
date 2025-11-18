@@ -7,7 +7,11 @@
     "build": "echo Building project... && mkdir -p dist && echo '<h1>Hello CI</h1>' > dist/index.html",
     "start": "node index.js"
   },
+  "dependencies": {
+    "pg": "^8.11.1"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC"
 }
+
