@@ -1,4 +1,4 @@
-name: CI/CD Node.js Docker Deploy
+name: CI/CD Node.js Podman Deploy
 
 on:
   push:
@@ -51,13 +51,22 @@ jobs:
       - name: Deploy container on EC2
         run: |
           ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
-            # Створюємо каталог для контейнера
-            podman rm -f nodeapp || true
+            # Вбити старий контейнер (якщо він є)
+            sudo podman rm -f nodeapp || true
 
-            # Завантажуємо образ з Docker Hub
-            podman pull docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
+            # Перевірити, чи порт 3000 зайнятий, якщо так — зупинити процес
+            if sudo ss -tulpn | grep -q ':3000'; then
+              sudo fuser -k 3000/tcp
+            fi
 
-            # Запускаємо контейнер
-            podman run -d --name nodeapp -p 3000:3000 docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
+            # Завантажити образ
+            sudo podman pull docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
+
+            # Запустити контейнер
+            sudo podman run -d --name nodeapp -p 3000:3000 docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
+
+            # Показати список запущених контейнерів і логи
+            sudo podman ps
+            sudo podman logs nodeapp || echo 'No logs yet'
           "
 
