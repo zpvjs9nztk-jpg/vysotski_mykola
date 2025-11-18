@@ -1,4 +1,4 @@
-name: CI for Node.js Project (EC2 Deploy)
+name: CI/CD Node.js Docker Deploy
 
 on:
   push:
@@ -12,6 +12,8 @@ jobs:
       EC2_HOST: ${{ secrets.EC2_HOST }}
       EC2_USER: ${{ secrets.EC2_USER }}
       EC2_SSH_KEY_B64: ${{ secrets.EC2_SSH_KEY_B64 }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -22,46 +24,40 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install dependencies
-        run: npm install
-
       - name: Build project
         run: npm run build
 
-      - name: List files after build
-        run: ls -la dist
+      - name: Get Git commit hash
+        id: git
+        run: echo "GIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: Debug environment
-        run: |
-          echo "EC2_HOST = $EC2_HOST"
-          echo "EC2_USER = $EC2_USER"
-          if [ -z "$EC2_HOST" ] || [ -z "$EC2_USER" ]; then
-            echo "❌ EC2_HOST або EC2_USER не задані!"
-            exit 1
-          fi
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Decode SSH key
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH} .
+
+      - name: Push Docker image
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
+
+      - name: Setup SSH key
         run: |
           echo "$EC2_SSH_KEY_B64" | base64 --decode > my-ec2-key.pem
           chmod 600 my-ec2-key.pem
-          ls -lh my-ec2-key.pem
 
-      - name: Test SSH connection
-        run: ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "echo '✅ SSH підключення успішне'"
-
-      - name: Copy build to EC2
-        run: |
-          ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "mkdir -p ~/app"
-          scp -i my-ec2-key.pem -o StrictHostKeyChecking=no -r ./dist/* $EC2_USER@$EC2_HOST:~/app
-
-      - name: Verify files on EC2
-        run: ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "ls -la ~/app"
-
-      - name: Run application on EC2
+      - name: Deploy Docker container on EC2
         run: |
           ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
-            cd ~/app && \
-            npm install && \
-            nohup npm start > app.log 2>&1 &
+            # Встановити Docker, якщо його немає
+            which docker || curl -fsSL https://get.docker.com | sh
+
+            # Зупинити старий контейнер
+            docker rm -f nodeapp || true
+
+            # Запустити новий контейнер
+            docker run -d --name nodeapp -p 3000:3000 ${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
           "
 
