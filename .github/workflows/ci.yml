@@ -1,4 +1,4 @@
-name: CI/CD Node.js Podman Deploy
+name: CI/CD Node.js Podman Deploy via SCP
 
 on:
   push:
@@ -12,53 +12,46 @@ jobs:
       EC2_HOST: ${{ secrets.EC2_HOST }}
       EC2_USER: ${{ secrets.EC2_USER }}
       EC2_SSH_KEY_B64: ${{ secrets.EC2_SSH_KEY_B64 }}
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get Git commit hash
-        id: git
-        run: echo "GIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          node-version: 18
 
-      - name: Build Docker image
-        run: docker build -t ${DOCKERHUB_USERNAME}/nodeapp:${GIT_HASH} .
-
-      - name: Push Docker image
-        run: docker push ${DOCKERHUB_USERNAME}/nodeapp:${GIT_HASH}
+      - name: Build project
+        run: npm run build
 
       - name: Setup SSH key
         run: |
           echo "$EC2_SSH_KEY_B64" | base64 --decode > my-ec2-key.pem
           chmod 600 my-ec2-key.pem
 
-      - name: Deploy using podman-compose
+      - name: Copy project to EC2
+        run: |
+          scp -i my-ec2-key.pem -o StrictHostKeyChecking=no -r . $EC2_USER@$EC2_HOST:~/app_temp
+
+      - name: Deploy with podman-compose
         run: |
           ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
-            set -e
+            # Зупинити старі контейнери
+            if [ -f ~/app_temp/docker-compose.yml ]; then
+              sudo podman-compose -f ~/app_temp/docker-compose.yml down || true
+            fi
 
+            # Перемістити файли в робочу папку
+            mkdir -p ~/app
+            rsync -a --delete ~/app_temp/ ~/app/
+
+            # Запустити podman-compose
             cd ~/app
+            sudo podman-compose up -d
 
-            # Оновити репозиторій
-            git pull origin main
-
-            # Пул нового образу
-            sudo podman pull docker.io/${DOCKERHUB_USERNAME}/nodeapp:${GIT_HASH}
-
-            # Зупинити старий стек
-            sudo podman-compose down || true
-
-            # Запустити стек у фоні
-            GIT_HASH=${GIT_HASH} sudo -E podman-compose up -d
-
+            # Показати список контейнерів і логи
             sudo podman ps
+            sudo podman logs nodeapp || echo 'No logs yet'
           "
 
