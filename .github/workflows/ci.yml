@@ -66,17 +66,12 @@ jobs:
             export PATH=\$PATH:/usr/local/bin
 
             # Зупиняємо старі контейнери
-            sudo podman ps -q --filter 'name=app' | xargs -r sudo podman rm -f
-            sudo podman ps -q --filter 'name=db' | xargs -r sudo podman rm -f
+            sudo podman-compose -f podman-compose.yml down
 
             # Запуск podman-compose
-            sudo env PATH=\$PATH:/usr/local/bin podman-compose -f podman-compose.yml up -d
+            sudo podman-compose -f podman-compose.yml up -d
 
-            # Перевірка контейнерів і логів
-            sudo podman ps
-            APP_CONTAINER=\$(sudo podman ps --filter 'name=app' --format '{{.Names}}' | head -n1)
-            DB_CONTAINER=\$(sudo podman ps --filter 'name=db' --format '{{.Names}}' | head -n1)
-            sudo podman logs \$APP_CONTAINER || echo 'No logs yet'
-            sudo podman logs \$DB_CONTAINER || echo 'No logs yet'
+            # Вивід логів у реальному часі
+            sudo podman-compose -f podman-compose.yml logs -f
           "
 
