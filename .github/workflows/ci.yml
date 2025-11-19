@@ -1,4 +1,4 @@
-name: CI/CD Node.js Podman Deploy via SCP
+name: CI/CD Node.js Podman Deploy via rsync
 
 on:
   push:
@@ -50,31 +50,29 @@ jobs:
 
       - name: Copy project to EC2
         run: |
-          scp -i my-ec2-key.pem -o StrictHostKeyChecking=no -r . $EC2_USER@$EC2_HOST:~/app_temp
+          rsync -av --exclude='.git' -e "ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no" ./ $EC2_USER@$EC2_HOST:~/app_temp/
 
       - name: Deploy with podman-compose
         run: |
           ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
-            # Створити робочу директорію
-            mkdir -p ~/app
+            # Зупинити старі контейнери
+            if [ -f ~/app_temp/podman-compose.yml ]; then
+              sudo podman-compose -f ~/app_temp/podman-compose.yml down || true
+            fi
 
-            # Перемістити файли
+            # Перемістити файли в робочу папку
+            mkdir -p ~/app
             rsync -a --delete ~/app_temp/ ~/app/
 
-            # Встановити тег SHA у середовище для podman-compose
-            export GITHUB_SHA=${GIT_HASH}
-
-            # Зупинити старі контейнери
-            if [ -f ~/app/podman-compose.yml ]; then
-              sudo podman-compose -f ~/app/podman-compose.yml down || true
-            fi
+            # Підставити актуальний тег образу в podman-compose.yml
+            sed -i 's|\${GITHUB_SHA}|${GIT_HASH}|g' ~/app/podman-compose.yml
 
             # Запустити podman-compose
             cd ~/app
             sudo podman-compose up -d
 
-            # Показати список контейнерів та логи
+            # Показати список контейнерів і логи
             sudo podman ps
-            sudo podman logs app_app_1 || echo 'No logs yet'
+            sudo podman logs app || echo 'No logs yet'
           "
 
