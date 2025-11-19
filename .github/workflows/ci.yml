@@ -62,16 +62,16 @@ jobs:
             # Підставити актуальний тег образу в podman-compose.yml
             sed -i 's|\${GITHUB_SHA}|${GIT_HASH}|g' podman-compose.yml
 
-            # Встановлюємо PATH для sudo, щоб бачив podman-compose
-            export PATH=\$PATH:/usr/local/bin
+            # Повний шлях до podman-compose
+            PODMAN_COMPOSE=/usr/local/bin/podman-compose
 
             # Зупиняємо старі контейнери
-            sudo podman-compose -f podman-compose.yml down
+            sudo \$PODMAN_COMPOSE down
 
             # Запуск podman-compose
-            sudo podman-compose -f podman-compose.yml up -d
+            sudo \$PODMAN_COMPOSE up -d
 
-            # Вивід логів у реальному часі
-            sudo podman-compose -f podman-compose.yml logs -f
+            # Виводимо логи контейнерів
+            sudo \$PODMAN_COMPOSE logs --follow
           "
 
