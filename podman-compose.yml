@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  app:
+    image: docker.io/zpvjs9nztk/nodeapp:${GITHUB_SHA}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: example
+      PGDATABASE: mydb
+
+  db:
+    image: docker.io/library/postgres:15
+    environment:
+      POSTGRES_PASSWORD: example
+      POSTGRES_DB: mydb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+

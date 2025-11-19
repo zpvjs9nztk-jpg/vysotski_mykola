@@ -19,14 +19,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Build project
-        run: npm run build
-
       - name: Get Git commit hash
         id: git
         run: echo "GIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -38,35 +30,35 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH} .
+        run: docker build -t ${DOCKERHUB_USERNAME}/nodeapp:${GIT_HASH} .
 
       - name: Push Docker image
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
+        run: docker push ${DOCKERHUB_USERNAME}/nodeapp:${GIT_HASH}
 
       - name: Setup SSH key
         run: |
           echo "$EC2_SSH_KEY_B64" | base64 --decode > my-ec2-key.pem
           chmod 600 my-ec2-key.pem
 
-      - name: Deploy container on EC2
+      - name: Deploy using podman-compose
         run: |
           ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
-            # Вбити старий контейнер (якщо він є)
-            sudo podman rm -f nodeapp || true
+            set -e
 
-            # Перевірити, чи порт 3000 зайнятий, якщо так — зупинити процес
-            if sudo ss -tulpn | grep -q ':3000'; then
-              sudo fuser -k 3000/tcp
-            fi
+            cd ~/app
 
-            # Завантажити образ
-            sudo podman pull docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
+            # Оновити репозиторій
+            git pull origin main
 
-            # Запустити контейнер
-            sudo podman run -d --name nodeapp -p 3000:3000 docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
+            # Пул нового образу
+            sudo podman pull docker.io/${DOCKERHUB_USERNAME}/nodeapp:${GIT_HASH}
 
-            # Показати список запущених контейнерів і логи
+            # Зупинити старий стек
+            sudo podman-compose down || true
+
+            # Запустити стек у фоні
+            GIT_HASH=${GIT_HASH} sudo -E podman-compose up -d
+
             sudo podman ps
-            sudo podman logs nodeapp || echo 'No logs yet'
           "
 
