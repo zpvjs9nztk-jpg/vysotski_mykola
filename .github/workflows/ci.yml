@@ -12,6 +12,8 @@ jobs:
       EC2_HOST: ${{ secrets.EC2_HOST }}
       EC2_USER: ${{ secrets.EC2_USER }}
       EC2_SSH_KEY_B64: ${{ secrets.EC2_SSH_KEY_B64 }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -25,6 +27,22 @@ jobs:
       - name: Build project
         run: npm run build
 
+      - name: Get Git commit hash
+        id: git
+        run: echo "GIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH} .
+
+      - name: Push Docker image
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/nodeapp:${GIT_HASH}
+
       - name: Setup SSH key
         run: |
           echo "$EC2_SSH_KEY_B64" | base64 --decode > my-ec2-key.pem
@@ -37,21 +55,26 @@ jobs:
       - name: Deploy with podman-compose
         run: |
           ssh -i my-ec2-key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
-            # Зупинити старі контейнери
-            if [ -f ~/app_temp/docker-compose.yml ]; then
-              sudo podman-compose -f ~/app_temp/docker-compose.yml down || true
-            fi
-
-            # Перемістити файли в робочу папку
+            # Створити робочу директорію
             mkdir -p ~/app
+
+            # Перемістити файли
             rsync -a --delete ~/app_temp/ ~/app/
+
+            # Встановити тег SHA у середовище для podman-compose
+            export GITHUB_SHA=${GIT_HASH}
+
+            # Зупинити старі контейнери
+            if [ -f ~/app/podman-compose.yml ]; then
+              sudo podman-compose -f ~/app/podman-compose.yml down || true
+            fi
 
             # Запустити podman-compose
             cd ~/app
             sudo podman-compose up -d
 
-            # Показати список контейнерів і логи
+            # Показати список контейнерів та логи
             sudo podman ps
-            sudo podman logs nodeapp || echo 'No logs yet'
+            sudo podman logs app_app_1 || echo 'No logs yet'
           "
 
