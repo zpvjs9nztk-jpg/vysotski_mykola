@@ -72,6 +72,6 @@ jobs:
             sudo \$PODMAN_COMPOSE up -d
 
             # Виводимо логи контейнерів
-            sudo \$PODMAN_COMPOSE logs --follow
+            sudo \$PODMAN_COMPOSE logs 
           "
 
